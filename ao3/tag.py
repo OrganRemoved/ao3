@@ -2,22 +2,30 @@ import re
 from dataclasses import KW_ONLY, dataclass, field
 from itertools import groupby
 from operator import itemgetter
-from typing import Any, Type
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
+T = TypeVar("T")
 
-class Descriptor:
-    def __set_name__(self, owner: Type["Tag"], name: str) -> None:
-        self.name = f"_{name}"
+if TYPE_CHECKING:
+    from ao3.work import Work
 
-    def __get__(self, instance: "Tag", owner: Type["Tag"]) -> Any:
+
+class Descriptor(Generic[T]):
+    def __init__(self, *, default: Any = None) -> None:
+        self.default = default
+
+    def __set_name__(self, owner: type["Tag"], name: str) -> None:
+        self.name = name
+
+    def __get__(self, instance: "Tag", owner: type["Tag"]) -> Any:
         if instance is None:
             return self
 
-        if not hasattr(instance, self.name):
+        if not hasattr(instance, f"_{self.name}"):
             from ao3.work import Work
 
             resp = instance.session.get(
@@ -168,14 +176,14 @@ class Descriptor:
             else:
                 raise NotImplementedError
 
-        if not hasattr(instance, self.name):
-            setattr(instance, self.name, None)
-            return
+        if not hasattr(instance, f"_{self.name}"):
+            setattr(instance, f"_{self.name}", self.default)
+            return self.default
 
-        return getattr(instance, self.name)
+        return getattr(instance, f"_{self.name}")
 
     def __set__(self, instance: "Tag", value: Any) -> None:
-        setattr(instance, f"_{value}", value)
+        setattr(instance, f"_{self.name}", value)
 
 
 @dataclass
@@ -191,11 +199,11 @@ class Tag:
 
     letter: str | None = None
 
-    works: Descriptor = Descriptor()
-    works_count: Descriptor = Descriptor()
-    bookmarks: Descriptor = Descriptor()
+    works: Descriptor[list["Work"]] = Descriptor()
+    works_count: Descriptor[int] = Descriptor()
+    bookmarks: Descriptor[int] = Descriptor()
     page: int = 1
-    page_count: Descriptor = Descriptor()
+    page_count: Descriptor[int] = Descriptor()
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"

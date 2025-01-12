@@ -1,10 +1,16 @@
 from dataclasses import KW_ONLY, dataclass, field
 from datetime import datetime
-from typing import Any, Type
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+
+if TYPE_CHECKING:
+    from ao3.tag import Tag
+
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -20,15 +26,18 @@ class Chapter:
     end_notes: str | None = None
 
 
-class Descriptor:
-    def __set_name__(self, owner: Type["Work"], name: str) -> None:
-        self.name = f"_{name}"
+class Descriptor(Generic[T]):
+    def __init__(self, *, default: Any = None) -> None:
+        self.default = default
 
-    def __get__(self, instance: "Work", owner: Type["Work"]) -> Any:
+    def __set_name__(self, owner: type["Work"], name: str) -> None:
+        self.name = name
+
+    def __get__(self, instance: "Work", owner: type["Work"]) -> Any:
         if instance is None:
             return self
 
-        if not hasattr(instance, self.name):
+        if not hasattr(instance, f"_{self.name}"):
             from ao3.tag import Tag
 
             resp = instance.session.get(
@@ -241,14 +250,14 @@ class Descriptor:
 
             setattr(instance, "_chapters", chapters)
 
-        if not hasattr(instance, self.name):
-            setattr(instance, self.name, None)
-            return
+        if not hasattr(instance, f"_{self.name}"):
+            setattr(instance, f"_{self.name}", self.default)
+            return self.default
 
-        return getattr(instance, self.name)
+        return getattr(instance, f"_{self.name}")
 
     def __set__(self, instance: "Work", value: Any) -> None:
-        setattr(instance, f"_{value}", value)
+        setattr(instance, f"_{self.name}", value)
 
 
 @dataclass
@@ -259,32 +268,32 @@ class Work:
 
     href: str
 
-    work_id: Descriptor = Descriptor()
-    chapter_id: Descriptor = Descriptor()
+    work_id: Descriptor[int] = Descriptor()
+    chapter_id: Descriptor[int] = Descriptor()
 
-    rating: Descriptor = Descriptor()
-    archive_warning: Descriptor = Descriptor()
-    fandoms: Descriptor = Descriptor()
-    relationships: Descriptor = Descriptor()
-    characters: Descriptor = Descriptor()
-    additional_tags: Descriptor = Descriptor()
-    language: Descriptor = Descriptor()
+    rating: Descriptor[list["Tag"]] = Descriptor()
+    archive_warning: Descriptor[list["Tag"]] = Descriptor()
+    fandoms: Descriptor[list["Tag"]] = Descriptor()
+    relationships: Descriptor[list["Tag"]] = Descriptor()
+    characters: Descriptor[list["Tag"]] = Descriptor()
+    additional_tags: Descriptor[list["Tag"]] = Descriptor()
+    language: Descriptor[str] = Descriptor()
 
-    published: Descriptor = Descriptor()
-    status: Descriptor = Descriptor()
-    words: Descriptor = Descriptor()
-    chapter_number: Descriptor = Descriptor()
-    chapter_count: Descriptor = Descriptor()
-    comments: Descriptor = Descriptor()
-    kudos: Descriptor = Descriptor()
-    bookmarks: Descriptor = Descriptor()
-    hits: Descriptor = Descriptor()
+    published: Descriptor[datetime] = Descriptor()
+    status: Descriptor[datetime] = Descriptor()
+    words: Descriptor[int] = Descriptor()
+    chapter_number: Descriptor[int] = Descriptor()
+    chapter_count: Descriptor[int] = Descriptor()
+    comments: Descriptor[int] = Descriptor()
+    kudos: Descriptor[int] = Descriptor()
+    bookmarks: Descriptor[int] = Descriptor()
+    hits: Descriptor[int] = Descriptor()
 
-    author: Descriptor = Descriptor()
-    title: Descriptor = Descriptor()
-    summary: Descriptor = Descriptor()
+    author: Descriptor[str] = Descriptor()
+    title: Descriptor[str] = Descriptor()
+    summary: Descriptor[str] = Descriptor()
 
-    chapters: Descriptor = Descriptor()
+    chapters: Descriptor[list[Chapter]] = Descriptor()
 
     def __post_init__(self) -> None:
         match [part for part in urlparse(self.href).path.split("/") if part]:

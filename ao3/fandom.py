@@ -1,7 +1,6 @@
 import re
 from dataclasses import KW_ONLY, dataclass, field
 from functools import cached_property
-from typing import List
 from urllib.parse import urljoin
 
 import requests
@@ -47,7 +46,7 @@ class Fandom:
                 ]
 
     @cached_property
-    def tags(self) -> List[Tag]:
+    def tags(self) -> list[Tag]:
         soup = BeautifulSoup(
             self.session.get(urljoin("https://archiveofourown.org", self.href)).text,
             features="lxml",
